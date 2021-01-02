@@ -3,53 +3,70 @@
 use cgmath;
 use ggez;
 
-use ggez::event;
+use ggez::event::{self, EventHandler};
 use ggez::graphics;
 use ggez::{Context, GameResult};
 use std::env;
 use std::path;
+use std::vec::Vec;
+
+mod simulation;
 
 // First we make a structure to contain the game's state
-struct MainState {
-    frames: usize,
-    text: graphics::Text,
+struct Scaffolding {
+    simulation: simulation::world::Simulation,
 }
 
-impl MainState {
-    fn new(ctx: &mut Context) -> GameResult<MainState> {
-        // The ttf file will be in your resources directory. Later, we
-        // will mount that directory so we can omit it in the path here.
-        let font = graphics::Font::new(ctx, "/DejaVuSerif.ttf")?;
-        let text = graphics::Text::new(("Hello world!", font, 48.0));
-
-        let s = MainState { frames: 0, text };
+impl Scaffolding {
+    fn new(ctx: &mut Context) -> GameResult<Scaffolding> {
+        let image = graphics::Image::new(ctx, "/wing.bmp")?;
+        let simulation = simulation::world::Simulation::new(
+            image.width().into(),
+            image.height().into(),
+            image.to_rgba8(ctx)?);
+        let s = Scaffolding { simulation };
         Ok(s)
     }
+
+    fn render(&self, ctx: &mut Context) -> GameResult<graphics::Image> {
+        let mut rgba = Vec::new();
+        for y in 0..self.simulation.grid.height {
+           for x in 0..self.simulation.grid.width {
+                if self.simulation.is_blocked(&simulation::world::Position::new(x, y)) {
+                    rgba.push(0);
+                    rgba.push(0);
+                    rgba.push(0);
+                    rgba.push(255);
+                } else {
+                    rgba.push(255);
+                    rgba.push(255);
+                    rgba.push(255);
+                    rgba.push(255);
+                }
+            }
+        }
+        graphics::Image::from_rgba8(ctx, self.simulation.grid.width as u16, self.simulation.grid.height as u16, &rgba)
+    }
 }
+
+
 
 // Then we implement the `ggez:event::EventHandler` trait on it, which
 // requires callbacks for updating and drawing the game state each frame.
 //
 // The `EventHandler` trait also contains callbacks for event handling
 // that you can override if you wish, but the defaults are fine.
-impl event::EventHandler for MainState {
+impl EventHandler for Scaffolding {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         graphics::clear(ctx, [0.1, 0.2, 0.3, 1.0].into());
+        let image = &self.render(ctx)?;
+        graphics::draw(ctx, image, graphics::DrawParam::default().dest(cgmath::Point2::new(0.0, 0.0)))?;
 
-        // Drawables are drawn from their top-left corner.
-        let offset = self.frames as f32 / 10.0;
-        let dest_point = cgmath::Point2::new(offset, offset);
-        graphics::draw(ctx, &self.text, (dest_point,))?;
         graphics::present(ctx)?;
-
-        self.frames += 1;
-        if (self.frames % 100) == 0 {
-            println!("FPS: {}", ggez::timer::fps(ctx));
-        }
 
         Ok(())
     }
@@ -77,6 +94,6 @@ pub fn main() -> GameResult {
     let cb = ggez::ContextBuilder::new("helloworld", "ggez").add_resource_path(resource_dir);
     let (ctx, event_loop) = &mut cb.build()?;
 
-    let state = &mut MainState::new(ctx)?;
+    let state = &mut Scaffolding::new(ctx)?;
     event::run(ctx, event_loop, state)
 }
